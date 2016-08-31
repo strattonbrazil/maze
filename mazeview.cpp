@@ -1,12 +1,23 @@
 #include "mazeview.h"
 
 #include <QMatrix4x4>
+#include <QKeyEvent>
 
 #include <iostream>
 
-MazeView::MazeView(QWidget *parent) : QGLWidget(parent)
+
+MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 {
-    maze = new Maze(5, 5);
+    maze = new Maze(50, 50);
+
+    setFocusPolicy(Qt::ClickFocus);
+
+    updateTimer = new QTimer(this);
+    connect(updateTimer, SIGNAL(timeout()), this, SLOT(update()));
+    updateTimer->setInterval(10);
+    updateTimer->start();
+
+    elapsedTimer.start();
 }
 
 void MazeView::initializeGL()
@@ -25,6 +36,20 @@ void MazeView::resizeGL(int w, int h)
 
 void MazeView::paintGL()
 {
+    int newTime = elapsedTimer.elapsed();
+    int elapsed = newTime - lastTime;
+    lastTime = newTime;
+
+    // TODO: make an update function
+    if (playerForward) {
+        player.speedForward(elapsed);
+    } else if (playerBack) {
+        player.speedBack(elapsed);
+    } else {
+        player.slowDown(elapsed);
+    }
+    player.update(elapsed);
+
     QPainter painter(this);
     //painter.begin(this);
 
@@ -44,31 +69,20 @@ void MazeView::paintGL()
     glLoadMatrixf(proj.data());
 
     QMatrix4x4 camera;
-    camera.lookAt(QVector3D(-7, -7, 8),
-                  QVector3D(maze->width() / 2, maze->height() / 2, 0),
+    QVector3D playerPos = player.pos();
+    camera.lookAt(playerPos,
+                  playerPos + player.lookDir(),
                   QVector3D(0, 0, 1));
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glLoadMatrixf(camera.data());
 
-
-
-    std::cout << "------------------------" << std::endl;
     glBegin(GL_QUADS);
     {
         for (int row = 0; row < maze->height(); row++) {
             for (int column = 0; column < maze->width(); column++) {
                 Cell cell = maze->cell(column, row);
-
-                std::cout << "row: " << row << std::endl;
-                std::cout << "column: " << column << std::endl;
-                    std::cout << "up: " << cell.up << std::endl;
-                    std::cout << "down: " << cell.down << std::endl;
-                    std::cout << "left: " << cell.left << std::endl;
-                    std::cout << "right: " << cell.right << std::endl;
-                    std::cout << "---" << std::endl;
-
 
                 const int x = column;
                 const int y = row;
@@ -122,6 +136,24 @@ void MazeView::paintGL()
     painter.end();
 }
 
+void MazeView::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_W && !playerBack) {
+        playerForward = true;
+    } else if (event->key() == Qt::Key_S && !playerForward) {
+        playerBack = true;
+    }
+}
+
+void MazeView::keyReleaseEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_W) {
+        playerForward = false;
+    } else if (event->key() == Qt::Key_S) {
+        playerBack = false;
+    }
+}
+
 void MazeView::drawMazeOverlay(QPainter &painter)
 {
     QPen penHText(QColor("#00e0fc"));
@@ -152,6 +184,10 @@ void MazeView::drawMazeOverlay(QPainter &painter)
                 painter.drawLine(x+18, y, x+18, (y+18));
         }
     }
+
+    // draw the player
+    QVector3D playerPos = player.pos();
+    painter.drawRect(20*playerPos.x() - 1 + 20, 20*playerPos.y() - 1 + 20, 2, 2);
 
     painter.setMatrix(prevMatrix);
 }
