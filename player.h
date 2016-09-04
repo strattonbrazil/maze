@@ -9,6 +9,8 @@ public:
     Player();
     QVector3D lookDir();
     QVector3D pos() { return _pos; }
+    void turnLeft(int elapsed);
+    void turnRight(int elapsed);
     void speedForward(int elapsed);
     void speedBack(int elapsed);
     void slowDown(int elapsed);

@@ -82,14 +82,22 @@ Maze::Maze(const int width, const int height) : WIDTH(width), HEIGHT(height)
     }
 }
 
+// returns a dummy cell with all walls if out of bounds
 Cell Maze::cell(int x, int y)
 {
     Cell cell;
 
-    cell.left = _verticals[y*(WIDTH+1) + x];
-    cell.right = _verticals[y*(WIDTH+1) + x+1];
-    cell.up = _horizontals[y+1 + x*(HEIGHT+1)];
-    cell.down = _horizontals[y + x*(HEIGHT+1)];
+    if (x < 0 || x >= width() || y < 0 || y >= height()) {
+        cell.left = true;
+        cell.right = true;
+        cell.up = true;
+        cell.down = true;
+    } else {
+        cell.left = _verticals[y*(WIDTH+1) + x];
+        cell.right = _verticals[y*(WIDTH+1) + x+1];
+        cell.up = _horizontals[y+1 + x*(HEIGHT+1)];
+        cell.down = _horizontals[y + x*(HEIGHT+1)];
+    }
 
     return cell;
 }
