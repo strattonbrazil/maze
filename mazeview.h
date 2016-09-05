@@ -9,6 +9,8 @@
 #include <QTimer>
 #include <QElapsedTimer>
 
+//#include <btBulletDynamicsCommon.h>
+
 class MazeView : public QGLWidget
 {
     Q_OBJECT
@@ -37,6 +39,8 @@ private:
     bool playerBack;
     bool playerLeft;
     bool playerRight;
+    bool playerStrafeLeft;
+    bool playerStrafeRight;
 };
 
 #endif // MAZEVIEW_H

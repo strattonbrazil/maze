@@ -3,6 +3,8 @@
 
 #include <QVector3D>
 
+enum { STRAFE_LEFT, STRAFE_RIGHT };
+
 class Player
 {
 public:
@@ -13,12 +15,15 @@ public:
     void turnRight(int elapsed);
     void speedForward(int elapsed);
     void speedBack(int elapsed);
+    void speedSideways(int elapsed, int dir);
     void slowDown(int elapsed);
+    void sidewaysDown(int elapsed);
     void update(int elapsed);
 private:
     QVector3D _pos;
     float _zRot;
-    float velocity;
+    float forwardVelocity;
+    float strafeVelocity;
 };
 
 #endif // PLAYER_H

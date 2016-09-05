@@ -9,7 +9,7 @@
 
 MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 {
-    maze = new Maze(50, 50);
+    maze = new Maze(10, 10);
 
     setFocusPolicy(Qt::ClickFocus);
 
@@ -24,6 +24,8 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
     playerRight = false;
     playerForward = false;
     playerBack = false;
+    playerStrafeLeft = false;
+    playerStrafeRight = false;
 }
 
 void MazeView::initializeGL()
@@ -53,6 +55,14 @@ void MazeView::paintGL()
         player.speedBack(elapsed);
     } else {
         player.slowDown(elapsed);
+    }
+
+    if (playerStrafeLeft) {
+        player.speedSideways(elapsed, STRAFE_LEFT);
+    } else if (playerStrafeRight) {
+        player.speedSideways(elapsed, STRAFE_RIGHT);
+    } else {
+        player.sidewaysDown(elapsed);
     }
 
     if (playerLeft)
@@ -116,37 +126,32 @@ void MazeView::paintGL()
                 glColor3f(1,0,0); //red
                 if (cell.up)
                     drawWall(QPoint(x, y+1), QVector2D(1,0), c1.right, c1.down, c4.right, c5.right, c6.up, c3.left);
-                /*
-                if (cell.up) {
-                    glVertex3f(x,  y+1,0);
-                    glVertex3f(x+1,y+1,0);
-                    glVertex3f(x+1,y+1,1);
-                    glVertex3f(x,  y+1,1);
-                }
-                */
 
                 glColor3f(1,1,0); // yellow
                 if (cell.down) {
-                    glVertex3f(x+1,y,0);
-                    glVertex3f(x,y,0);
-                    glVertex3f(x,y,1);
-                    glVertex3f(x+1,y,1);
+                    drawWall(QPoint(x+1, y), QVector2D(-1,0), c8.right, c6.down, c5.right, c4.right, c4.down, c7.right);
                 }
 
                 glColor3f(1,0,1); // purple
                 if (cell.left) {
+                    drawWall(QPoint(x,y), QVector2D(0,1), c7.up, c7.right, c5.down, c5.up, c2.left, c1.down);
+                    /*
                     glVertex3f(x,y,0);
                     glVertex3f(x,y+1,0);
                     glVertex3f(x,y+1,1);
                     glVertex3f(x,y,1);
+                    */
                 }
 
                 glColor3f(0,1,1); // cyan
                 if (cell.right) {
+                    drawWall(QPoint(x+1,y+1), QVector2D(0,-1), c3.down, c3.left, c5.up, c5.down, c8.right, c9.up);
+                    /*
                     glVertex3f(x+1,y+1,0);
                     glVertex3f(x+1,y,0);
                     glVertex3f(x+1,y,1);
                     glVertex3f(x+1,y+1,1);
+                    */
                 }
             }
         }
@@ -159,6 +164,23 @@ void MazeView::paintGL()
     }
     glEnd();
 
+    // draw ground grid
+    glBegin(GL_LINES);
+    {
+        for (int row = 0; row <= maze->height(); row++) {
+            glVertex2f(0, row);
+            glVertex2f(width(), row);
+        }
+
+        for (int column = 0; column <= maze->width(); column++) {
+            glVertex2f(column, 0);
+            glVertex2f(column, height());
+        }
+    }
+    glEnd();
+
+    glDisable(GL_DEPTH_TEST);
+
     painter.endNativePainting();
 
     drawMazeOverlay(painter);
@@ -168,16 +190,25 @@ void MazeView::paintGL()
 
 void MazeView::keyPressEvent(QKeyEvent *event)
 {
+    // forward and back
     if (event->key() == Qt::Key_W && !playerBack) {
         playerForward = true;
     } else if (event->key() == Qt::Key_S && !playerForward) {
         playerBack = true;
     }
 
+    // turning
     if (event->key() == Qt::Key_Q) {
         playerLeft = true;
     } else if (event->key() == Qt::Key_E) {
         playerRight = true;
+    }
+
+    // stafing
+    if (event->key() == Qt::Key_A) {
+        playerStrafeLeft = true;
+    } else if (event->key() == Qt::Key_D) {
+        playerStrafeRight = true;
     }
 }
 
@@ -191,6 +222,10 @@ void MazeView::keyReleaseEvent(QKeyEvent *event)
         playerLeft = false;
     } else if (event->key() == Qt::Key_E) {
         playerRight = false;
+    } else if (event->key() == Qt::Key_A) {
+        playerStrafeLeft = false;
+    } else if (event->key() == Qt::Key_D) {
+        playerStrafeRight = false;
     }
 }
 
@@ -222,6 +257,8 @@ void MazeView::drawWall(QPoint pXY, QVector2D basisBottom, bool w1, bool w2, boo
         wallLength -= OFFSET;
     } else if (w6) {
         wallLength += OFFSET;
+    } else if (!w5) {
+        wallLength += OFFSET;
     }
 
     QVector3D cornerB = cornerA + basisBottom * wallLength;
@@ -236,7 +273,7 @@ void MazeView::drawWall(QPoint pXY, QVector2D basisBottom, bool w1, bool w2, boo
 
 void MazeView::drawMazeOverlay(QPainter &painter)
 {
-    QPen penHText(QColor("#ff02fF"));
+    QPen penHText(QColor("#00ff00"));
     painter.setPen(penHText);
     //painter.setBrush(Qt::white);
 
@@ -247,6 +284,7 @@ void MazeView::drawMazeOverlay(QPainter &painter)
     flipMatrix.scale(1,-1);
     painter.setMatrix(flipMatrix);
 
+    painter.fillRect(0, 0, 250, 250, Qt::gray);
 
     for (int row = 0; row < maze->height(); row++) {
         for (int column = 0; column < maze->width(); column++) {
