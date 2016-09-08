@@ -10,7 +10,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Maze
 TEMPLATE = app
-
+INCLUDEPATH += /usr/local/include/bullet/
+LIBS += -L/usr/local/lib/ -lBulletSoftBody -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D
 
 SOURCES += main.cpp\
         mainwindow.cpp \

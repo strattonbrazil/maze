@@ -9,13 +9,17 @@
 #include <QTimer>
 #include <QElapsedTimer>
 
-//#include <btBulletDynamicsCommon.h>
+#include <btBulletDynamicsCommon.h>
+#include <Box2D/Box2D.h>
+
+const float PLAYER_RADIUS = 0.3f;
 
 class MazeView : public QGLWidget
 {
     Q_OBJECT
 public:
     explicit MazeView(QWidget *parent = 0);
+    ~MazeView();
     void initializeGL();
     void resizeGL(int w, int h);
     void paintGL();
@@ -41,6 +45,25 @@ private:
     bool playerRight;
     bool playerStrafeLeft;
     bool playerStrafeRight;
+
+    // bullet physics
+    btBroadphaseInterface* broadphase;// = new btDbvtBroadphase();
+    btDefaultCollisionConfiguration* collisionConfiguration;
+    btCollisionDispatcher* dispatcher;
+    btSequentialImpulseConstraintSolver* solver;
+    btDiscreteDynamicsWorld* dynamicsWorld;
+    btCollisionShape* groundShape;
+    btCollisionShape* fallShape;
+    btDefaultMotionState* groundMotionState;
+    btRigidBody* groundRigidBody;
+    btDefaultMotionState* fallMotionState;
+    btRigidBody* fallRigidBody;
+
+    b2World* world;
+    b2Body* mazeBody;
+    b2Body* groundBody;
+    b2Body* body;
+    b2Body* playerBody;
 };
 
 #endif // MAZEVIEW_H

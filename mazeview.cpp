@@ -4,6 +4,8 @@
 #include <QKeyEvent>
 #include <QCache>
 
+#include <math.h>
+
 #include <iostream>
 
 
@@ -20,12 +22,106 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 
     elapsedTimer.start();
 
+    // http://www.bulletphysics.org/mediawiki-1.5.8/index.php/Hello_World
+    broadphase = new btDbvtBroadphase();
+    collisionConfiguration = new btDefaultCollisionConfiguration();
+    dispatcher = new btCollisionDispatcher(collisionConfiguration);
+    solver = new btSequentialImpulseConstraintSolver;
+    dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
+    dynamicsWorld->setGravity(btVector3(0, 0, -10));
+    groundShape = new btStaticPlaneShape(btVector3(0, 0, 1), 1);
+    fallShape = new btSphereShape(0.3f);
+
+    groundMotionState = new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, 0, -1)));
+    btRigidBody::btRigidBodyConstructionInfo groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
+    groundRigidBody = new btRigidBody(groundRigidBodyCI);
+    dynamicsWorld->addRigidBody(groundRigidBody);
+
+    fallMotionState = new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, 0, 50)));
+    btScalar mass = 1;
+    btVector3 fallInertia(0, 0, 0);
+    fallShape->calculateLocalInertia(mass, fallInertia);
+    btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(mass, fallMotionState, fallShape, fallInertia);
+    fallRigidBody = new btRigidBody(fallRigidBodyCI);
+    dynamicsWorld->addRigidBody(fallRigidBody);
+
+    world = new b2World(b2Vec2(0.0f, 0.0f)); // no gravity
+
+    // create the ground
+    b2BodyDef groundBodyDef;
+    groundBodyDef.position.Set(0.0f, -10.0f);
+    groundBody = world->CreateBody(&groundBodyDef);
+    b2PolygonShape groundBox;
+    groundBox.SetAsBox(50.0f, 10.0f);
+    groundBody->CreateFixture(&groundBox, 0.0f);
+
+    // create the maze body
+    b2BodyDef mazeBodyDef;
+    mazeBody = world->CreateBody(&mazeBodyDef);
+    for (int row = 0; row < maze->height(); row++) {
+        for (int column = 0; column < maze->width(); column++) {
+            Cell cell = maze->cell(column, row);
+            if (cell.up) {
+                b2Vec2 v1(column, row+1);
+                b2Vec2 v2(column+1, row+1);
+                b2EdgeShape edge;
+                edge.Set(v1, v2);
+
+                mazeBody->CreateFixture(&edge, 0.0f);
+            }
+        }
+    }
+
+    // create the body
+    b2BodyDef bodyDef;
+    bodyDef.type = b2_dynamicBody; // can move
+    bodyDef.position.Set(0.0f, 40.0f);
+    body = world->CreateBody(&bodyDef);
+    b2PolygonShape dynamicBox;
+    dynamicBox.SetAsBox(1.0f, 1.0f);
+    b2FixtureDef fixtureDef;
+    fixtureDef.shape = &dynamicBox; // is this a bug waiting to happen?
+    fixtureDef.density = 1.0f;
+    fixtureDef.friction = 0.3f;
+    body->CreateFixture(&fixtureDef);
+
+    // create the player
+    b2BodyDef playerDef;
+    playerDef.type = b2_dynamicBody;
+    playerDef.position.Set(0.5f, 7.5f);
+    playerBody = world->CreateBody(&playerDef);
+    b2CircleShape circle;
+    circle.m_radius = PLAYER_RADIUS;
+    b2FixtureDef playerFixtureDef;
+    playerFixtureDef.shape = &circle; // is this a bug waiting to happen?
+    playerFixtureDef.density = 1.0f;
+    playerFixtureDef.friction = 0.3f;
+    playerBody->CreateFixture(&playerFixtureDef);
+
+
+
     playerLeft = false;
     playerRight = false;
     playerForward = false;
     playerBack = false;
     playerStrafeLeft = false;
     playerStrafeRight = false;
+}
+
+MazeView::~MazeView()
+{
+    delete dynamicsWorld;
+    delete solver;
+    delete dispatcher;
+    delete collisionConfiguration;
+    delete broadphase;
+    delete groundShape;
+    delete fallShape;
+    delete groundMotionState;
+    delete groundRigidBody;
+
+    world->DestroyBody(groundBody);
+    delete world;
 }
 
 void MazeView::initializeGL()
@@ -47,6 +143,16 @@ void MazeView::paintGL()
     int newTime = elapsedTimer.elapsed();
     int elapsed = newTime - lastTime;
     lastTime = newTime;
+
+    float elapsedSeconds = elapsed * 0.001f;
+    dynamicsWorld->stepSimulation(elapsedSeconds, 10);
+    btTransform trans;
+    fallRigidBody->getMotionState()->getWorldTransform(trans);
+
+    world->Step(elapsedSeconds, 6, 2);
+    b2Vec2 position = body->GetPosition();
+    //float32 angle = body->GetAngle();
+    //std::cout << position.y << std::endl;
 
     // TODO: make an update function
     if (playerForward) {
@@ -92,9 +198,14 @@ void MazeView::paintGL()
 
     QMatrix4x4 camera;
     QVector3D playerPos = player.pos();
+    /*
     camera.lookAt(playerPos,
                   playerPos + player.lookDir(),
                   QVector3D(0, 0, 1));
+                  */
+    camera.lookAt(QVector3D(maze->width() / 2, maze->height() / 2, 30),
+                  QVector3D(maze->width() / 2, maze->height() / 2, 0),
+                  QVector3D(0,1,0));
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -135,32 +246,22 @@ void MazeView::paintGL()
                 glColor3f(1,0,1); // purple
                 if (cell.left) {
                     drawWall(QPoint(x,y), QVector2D(0,1), c7.up, c7.right, c5.down, c5.up, c2.left, c1.down);
-                    /*
-                    glVertex3f(x,y,0);
-                    glVertex3f(x,y+1,0);
-                    glVertex3f(x,y+1,1);
-                    glVertex3f(x,y,1);
-                    */
                 }
 
                 glColor3f(0,1,1); // cyan
                 if (cell.right) {
                     drawWall(QPoint(x+1,y+1), QVector2D(0,-1), c3.down, c3.left, c5.up, c5.down, c8.right, c9.up);
-                    /*
-                    glVertex3f(x+1,y+1,0);
-                    glVertex3f(x+1,y,0);
-                    glVertex3f(x+1,y,1);
-                    glVertex3f(x+1,y+1,1);
-                    */
                 }
             }
         }
 
+        float x = position.x;
+        float y = position.y;
         glColor3f(1,1,1);
-        glVertex2f(0, 0);
-        glVertex2f(1, 0);
-        glVertex2f(1, 1);
-        glVertex2f(0, 1);
+        glVertex2f(x-1, y);
+        glVertex2f(x, y);
+        glVertex2f(x, y+1);
+        glVertex2f(x-1, y+1);
     }
     glEnd();
 
@@ -178,6 +279,23 @@ void MazeView::paintGL()
         }
     }
     glEnd();
+
+    // draw player
+    glColor3f(1,1,1);
+    b2Vec2 playerP = playerBody->GetPosition();
+    glTranslatef(playerP.x, playerP.y, 0);
+    glBegin(GL_TRIANGLE_FAN);
+    {
+        const int NUM_SIDES = 32;
+        for (int i = 0; i <= NUM_SIDES; i++) {
+            float angle = 2.0f * M_PI * i / NUM_SIDES;
+            float x = PLAYER_RADIUS * cos(angle);
+            float y = PLAYER_RADIUS * sin(angle);
+            glVertex2f(x, y);
+        }
+    }
+    glEnd();
+    glTranslatef(-playerP.x, -playerP.y, 0);
 
     glDisable(GL_DEPTH_TEST);
 
