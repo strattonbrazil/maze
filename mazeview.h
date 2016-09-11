@@ -33,7 +33,7 @@ private:
     void drawWall(QPoint p, QVector2D basis, bool w1, bool w2, bool w3, bool w4, bool w5, bool w6);
     void drawMazeOverlay(QPainter &painter);
     Maze* maze;
-    Player player;
+    //Player player;
     QTimer* updateTimer;
 
     QElapsedTimer elapsedTimer;

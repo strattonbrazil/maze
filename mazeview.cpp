@@ -8,6 +8,10 @@
 
 #include <iostream>
 
+b2Vec2 dir(float angle)
+{
+    return b2Vec2(cos(angle), sin(angle));
+}
 
 MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 {
@@ -69,6 +73,14 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 
                 mazeBody->CreateFixture(&edge, 0.0f);
             }
+            if (cell.left) {
+                b2Vec2 v1(column, row);
+                b2Vec2 v2(column, row+1);
+                b2EdgeShape edge;
+                edge.Set(v1, v2);
+
+                mazeBody->CreateFixture(&edge, 0.0f);
+            }
         }
     }
 
@@ -88,16 +100,16 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
     // create the player
     b2BodyDef playerDef;
     playerDef.type = b2_dynamicBody;
-    playerDef.position.Set(0.5f, 7.5f);
+    playerDef.position.Set(0.5f, 0.5f);
     playerBody = world->CreateBody(&playerDef);
     b2CircleShape circle;
     circle.m_radius = PLAYER_RADIUS;
     b2FixtureDef playerFixtureDef;
     playerFixtureDef.shape = &circle; // is this a bug waiting to happen?
     playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.3f;
+    playerFixtureDef.friction = 0.0f;
     playerBody->CreateFixture(&playerFixtureDef);
-
+    playerBody->SetLinearVelocity(b2Vec2(0,0));
 
 
     playerLeft = false;
@@ -135,7 +147,7 @@ void MazeView::initializeGL()
 
 void MazeView::resizeGL(int w, int h)
 {
-
+    glViewport(0, 0, w, h);
 }
 
 void MazeView::paintGL()
@@ -151,18 +163,43 @@ void MazeView::paintGL()
 
     world->Step(elapsedSeconds, 6, 2);
     b2Vec2 position = body->GetPosition();
-    //float32 angle = body->GetAngle();
-    //std::cout << position.y << std::endl;
+
+    float currentAngle = playerBody->GetAngle();
 
     // TODO: make an update function
+    b2Vec2 lookDir = dir(currentAngle);
     if (playerForward) {
-        player.speedForward(elapsed);
+        b2Vec2 v = playerBody->GetLinearVelocity();
+        b2Vec2 newV = ACCELERATION * elapsedSeconds * lookDir + v;
+        float l = std::min(MAX_FORWARD_VELOCITY, newV.Length());
+        newV.Normalize();
+        newV *= l;
+        playerBody->SetLinearVelocity(newV);
     } else if (playerBack) {
-        player.speedBack(elapsed);
+        b2Vec2 v = playerBody->GetLinearVelocity();
+        b2Vec2 newV = -ACCELERATION * elapsedSeconds * lookDir + v;
+        float l = v.Length();
+        newV.Normalize();
+        newV *= l;
+        playerBody->SetLinearVelocity(newV);
     } else {
-        player.slowDown(elapsed);
+        b2Vec2 v = playerBody->GetLinearVelocity();
+
+        // adjust velocity to be where player is facing
+        float l = v.Length();
+        if (l > 0) {
+            l -= elapsedSeconds * ACCELERATION;
+            l = std::max(0.0f, l);
+        } else {
+            l += elapsedSeconds * ACCELERATION;
+            l = std::min(0.0f, l);
+        }
+        v.Normalize();
+        v *= l;
+        playerBody->SetLinearVelocity(v);
     }
 
+    /*
     if (playerStrafeLeft) {
         player.speedSideways(elapsed, STRAFE_LEFT);
     } else if (playerStrafeRight) {
@@ -171,15 +208,32 @@ void MazeView::paintGL()
         player.sidewaysDown(elapsed);
     }
 
-    if (playerLeft)
-        player.turnLeft(elapsed);
-    if (playerRight)
-        player.turnRight(elapsed);
+    */
+    if (playerLeft && !playerRight) {
+        float v = playerBody->GetAngularVelocity();
+        v += elapsedSeconds * TURN_ACCELERATION;
+        v = std::min(MAX_TURN_VELOCITY, v);
+        playerBody->SetAngularVelocity(v);
+    } else if (playerRight && !playerLeft) {
+        float v = playerBody->GetAngularVelocity();
+        v -= elapsedSeconds * TURN_ACCELERATION;
+        v = std::max(-MAX_TURN_VELOCITY, v);
+        playerBody->SetAngularVelocity(v);
+    } else { // slow down
+        float v = playerBody->GetAngularVelocity();
+        if (v > 0) {
+            v -= elapsedSeconds * TURN_ACCELERATION;
+            v = std::max(0.0f, v);
+            playerBody->SetAngularVelocity(v);
+        } else {
+            v += elapsedSeconds * TURN_ACCELERATION;
+            v = std::min(0.0f, v);
+            playerBody->SetAngularVelocity(v);
+        }
+    }
 
-    player.update(elapsed);
 
     QPainter painter(this);
-    //painter.begin(this);
 
     painter.beginNativePainting();
 
@@ -197,21 +251,19 @@ void MazeView::paintGL()
     glLoadMatrixf(proj.data());
 
     QMatrix4x4 camera;
-    QVector3D playerPos = player.pos();
-    /*
+    QVector3D playerPos((float)(playerBody->GetPosition().x), (float)(playerBody->GetPosition().y), 0.5f);
     camera.lookAt(playerPos,
-                  playerPos + player.lookDir(),
+                  playerPos + QVector3D((float)(lookDir.x), (float)(lookDir.y), 0.0f),
                   QVector3D(0, 0, 1));
-                  */
+    /*
     camera.lookAt(QVector3D(maze->width() / 2, maze->height() / 2, 30),
                   QVector3D(maze->width() / 2, maze->height() / 2, 0),
                   QVector3D(0,1,0));
+                  */
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glLoadMatrixf(camera.data());
-
-    const int THICK = 0.05f;
 
     glBegin(GL_QUADS);
     {
@@ -295,6 +347,19 @@ void MazeView::paintGL()
         }
     }
     glEnd();
+    float x = PLAYER_RADIUS * cos(currentAngle);
+    float y = PLAYER_RADIUS * sin(currentAngle);
+    glTranslatef(x, y, 0);
+    glColor3f(0,0,255);
+    glBegin(GL_QUADS);
+    {
+        glVertex2f(-0.1,-0.1);
+        glVertex2f(0.1,-0.1);
+        glVertex2f(0.1,0.1);
+        glVertex2f(-0.1,0.1);
+    }
+    glEnd();
+    glTranslatef(-x, -y, 0);
     glTranslatef(-playerP.x, -playerP.y, 0);
 
     glDisable(GL_DEPTH_TEST);
@@ -423,7 +488,8 @@ void MazeView::drawMazeOverlay(QPainter &painter)
     }
 
     // draw the player
-    QVector3D playerPos = player.pos();
+    b2Vec2 p = playerBody->GetPosition();
+    QVector3D playerPos(p.x, p.y, 0);
     painter.drawRect(20*playerPos.x() - 1 + 20, 20*playerPos.y() - 1 + 20, 2, 2);
 
     painter.setMatrix(prevMatrix);

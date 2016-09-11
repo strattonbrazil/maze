@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <iostream>
 
+
+/*
 const float MAX_FORWARD_VELOCITY = 5.0f;
 const float MAX_BACKWARD_VELOCITY = -2.0f;
 const float MAX_STRAFE_VELOCITY = 2.0f;
@@ -98,5 +100,5 @@ void Player::update(int elapsed)
 
     _pos = _pos + move;
 }
-
+*/
 
