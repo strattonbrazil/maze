@@ -24,6 +24,8 @@ public:
     void resizeGL(int w, int h);
     void paintGL();
 
+    void mousePressEvent(QMouseEvent *event);
+    void mouseMoveEvent(QMouseEvent *event);
     void keyPressEvent(QKeyEvent *event);
     void keyReleaseEvent(QKeyEvent *event);
 signals:
@@ -38,6 +40,9 @@ private:
 
     QElapsedTimer elapsedTimer;
     int lastTime;
+
+    QPoint lastMouseP;
+    QPoint lastMouseDiff;
 
     bool playerForward;
     bool playerBack;

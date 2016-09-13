@@ -13,11 +13,16 @@ b2Vec2 dir(float angle)
     return b2Vec2(cos(angle), sin(angle));
 }
 
+QVector3D to3D(b2Vec2 v) {
+    return QVector3D((float)(v.x), (float)(v.y), 0.0f);
+}
+
 MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
 {
     maze = new Maze(10, 10);
 
     setFocusPolicy(Qt::ClickFocus);
+    setMouseTracking(true);
 
     updateTimer = new QTimer(this);
     connect(updateTimer, SIGNAL(timeout()), this, SLOT(update()));
@@ -76,6 +81,14 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
             if (cell.left) {
                 b2Vec2 v1(column, row);
                 b2Vec2 v2(column, row+1);
+                b2EdgeShape edge;
+                edge.Set(v1, v2);
+
+                mazeBody->CreateFixture(&edge, 0.0f);
+            }
+            if (cell.right && column == maze->width() - 1) {
+                b2Vec2 v1(column+1, row);
+                b2Vec2 v2(column+1, row+1);
                 b2EdgeShape edge;
                 edge.Set(v1, v2);
 
@@ -178,11 +191,11 @@ void MazeView::paintGL()
     } else if (playerBack) {
         b2Vec2 v = playerBody->GetLinearVelocity();
         b2Vec2 newV = -ACCELERATION * elapsedSeconds * lookDir + v;
-        float l = v.Length();
+        float l = std::min(MAX_BACKWARD_VELOCITY, newV.Length());
         newV.Normalize();
         newV *= l;
         playerBody->SetLinearVelocity(newV);
-    } else {
+    } else { // slow down
         b2Vec2 v = playerBody->GetLinearVelocity();
 
         // adjust velocity to be where player is facing
@@ -199,16 +212,32 @@ void MazeView::paintGL()
         playerBody->SetLinearVelocity(v);
     }
 
-    /*
     if (playerStrafeLeft) {
-        player.speedSideways(elapsed, STRAFE_LEFT);
+        QVector3D lookDir3D = to3D(lookDir);
+        QVector3D leftDir = QVector3D::crossProduct(lookDir3D, QVector3D(0,0,-1));
+        leftDir.normalize();
+
+        b2Vec2 v = playerBody->GetLinearVelocity();
+        float currentLeftV = QVector3D::dotProduct(leftDir, to3D(v)) / v.Length();
+        if (v.Length() < 0.001f || currentLeftV < MAX_STRAFE_VELOCITY) { // can strafe left
+            b2Vec2 newV = ACCELERATION * elapsedSeconds * b2Vec2(leftDir.x(), leftDir.y()) + v;
+            playerBody->SetLinearVelocity(newV);
+        }
     } else if (playerStrafeRight) {
-        player.speedSideways(elapsed, STRAFE_RIGHT);
+        QVector3D lookDir3D = to3D(lookDir);
+        QVector3D rightDir = QVector3D::crossProduct(lookDir3D, QVector3D(0,0,1));
+        rightDir.normalize();
+
+        b2Vec2 v = playerBody->GetLinearVelocity();
+        float currentRightV = QVector3D::dotProduct(rightDir, to3D(v)) / v.Length();
+        if (v.Length() < 0.001f || currentRightV < MAX_STRAFE_VELOCITY) { // can strafe right
+            b2Vec2 newV = ACCELERATION * elapsedSeconds * b2Vec2(rightDir.x(), rightDir.y()) + v;
+            playerBody->SetLinearVelocity(newV);
+        }
     } else {
-        player.sidewaysDown(elapsed);
+        //player.sidewaysDown(elapsed);
     }
 
-    */
     if (playerLeft && !playerRight) {
         float v = playerBody->GetAngularVelocity();
         v += elapsedSeconds * TURN_ACCELERATION;
@@ -232,6 +261,13 @@ void MazeView::paintGL()
         }
     }
 
+    if (lastMouseDiff.x() != 0) {
+        std::cout << lastMouseDiff.x() * -0.001 << std::endl;
+        float newAngle = playerBody->GetAngle() + lastMouseDiff.x() * -0.001;
+        playerBody->SetTransform(playerBody->GetPosition(), newAngle);
+        //std::cout << newAngle << std::endl;
+    }
+    lastMouseDiff = QPoint(0,0);
 
     QPainter painter(this);
 
@@ -244,22 +280,24 @@ void MazeView::paintGL()
 
     float aspect = width() / (float)height();
     QMatrix4x4 proj;
-    proj.perspective(30, aspect, 0.3, 100);
+    proj.perspective(30, aspect, 0.2, 100);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glLoadMatrixf(proj.data());
 
     QMatrix4x4 camera;
+
+#if 1
     QVector3D playerPos((float)(playerBody->GetPosition().x), (float)(playerBody->GetPosition().y), 0.5f);
     camera.lookAt(playerPos,
                   playerPos + QVector3D((float)(lookDir.x), (float)(lookDir.y), 0.0f),
                   QVector3D(0, 0, 1));
-    /*
+#else
     camera.lookAt(QVector3D(maze->width() / 2, maze->height() / 2, 30),
                   QVector3D(maze->width() / 2, maze->height() / 2, 0),
                   QVector3D(0,1,0));
-                  */
+#endif
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -371,8 +409,31 @@ void MazeView::paintGL()
     painter.end();
 }
 
+void MazeView::mousePressEvent(QMouseEvent *event)
+{
+    grabMouse();
+    setCursor(Qt::BlankCursor);
+}
+
+void MazeView::mouseMoveEvent(QMouseEvent *event)
+{
+    if (cursor().shape() == Qt::BlankCursor) {
+        lastMouseDiff = lastMouseP - event->pos();
+        lastMouseP = event->pos();
+
+        QPoint centerOfScreen = mapToGlobal(QPoint(width() / 2, height() / 2));
+        QCursor::setPos(centerOfScreen);
+    }
+}
+
+
 void MazeView::keyPressEvent(QKeyEvent *event)
 {
+    if (event->key() == Qt::Key_Escape) {
+        releaseMouse();
+        setCursor(Qt::ArrowCursor);
+    }
+
     // forward and back
     if (event->key() == Qt::Key_W && !playerBack) {
         playerForward = true;
