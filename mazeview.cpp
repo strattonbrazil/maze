@@ -1,12 +1,17 @@
 #include "mazeview.h"
+#include "shader.h"
 
 #include <QMatrix4x4>
 #include <QKeyEvent>
 #include <QCache>
 
+
 #include <math.h>
 
 #include <iostream>
+
+const float WALL_HEIGHT = 2.0f;
+const float CELL_WIDTH = 2.0f;
 
 b2Vec2 dir(float angle)
 {
@@ -71,24 +76,24 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
         for (int column = 0; column < maze->width(); column++) {
             Cell cell = maze->cell(column, row);
             if (cell.up) {
-                b2Vec2 v1(column, row+1);
-                b2Vec2 v2(column+1, row+1);
+                b2Vec2 v1(CELL_WIDTH * column, CELL_WIDTH * (row+1));
+                b2Vec2 v2(CELL_WIDTH * (column+1), CELL_WIDTH * (row+1));
                 b2EdgeShape edge;
                 edge.Set(v1, v2);
 
                 mazeBody->CreateFixture(&edge, 0.0f);
             }
             if (cell.left) {
-                b2Vec2 v1(column, row);
-                b2Vec2 v2(column, row+1);
+                b2Vec2 v1(CELL_WIDTH * column, CELL_WIDTH * row);
+                b2Vec2 v2(CELL_WIDTH * column, CELL_WIDTH * (row+1));
                 b2EdgeShape edge;
                 edge.Set(v1, v2);
 
                 mazeBody->CreateFixture(&edge, 0.0f);
             }
             if (cell.right && column == maze->width() - 1) {
-                b2Vec2 v1(column+1, row);
-                b2Vec2 v2(column+1, row+1);
+                b2Vec2 v1(CELL_WIDTH * (column+1), CELL_WIDTH * row);
+                b2Vec2 v2(CELL_WIDTH * (column+1), CELL_WIDTH * (row+1));
                 b2EdgeShape edge;
                 edge.Set(v1, v2);
 
@@ -131,6 +136,7 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
     playerBack = false;
     playerStrafeLeft = false;
     playerStrafeRight = false;
+    upDownAngle = 0.0f;
 }
 
 MazeView::~MazeView()
@@ -156,11 +162,14 @@ void MazeView::initializeGL()
 
     glEnable(GL_DEPTH_TEST);
 
+    wallShader = ShaderFactory::wallShader(context());
 }
 
 void MazeView::resizeGL(int w, int h)
 {
     glViewport(0, 0, w, h);
+
+    update();
 }
 
 void MazeView::paintGL()
@@ -262,10 +271,12 @@ void MazeView::paintGL()
     }
 
     if (lastMouseDiff.x() != 0) {
-        std::cout << lastMouseDiff.x() * -0.001 << std::endl;
-        float newAngle = playerBody->GetAngle() + lastMouseDiff.x() * -0.001;
+        float newAngle = playerBody->GetAngle() + lastMouseDiff.x() * -0.0005f;
         playerBody->SetTransform(playerBody->GetPosition(), newAngle);
         //std::cout << newAngle << std::endl;
+    }
+    if (lastMouseDiff.y() != 0) {
+        upDownAngle += lastMouseDiff.y() * 0.0005f;
     }
     lastMouseDiff = QPoint(0,0);
 
@@ -280,7 +291,7 @@ void MazeView::paintGL()
 
     float aspect = width() / (float)height();
     QMatrix4x4 proj;
-    proj.perspective(30, aspect, 0.2, 100);
+    proj.perspective(45, aspect, 0.2, 100);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -288,20 +299,25 @@ void MazeView::paintGL()
 
     QMatrix4x4 camera;
 
-#if 1
-    QVector3D playerPos((float)(playerBody->GetPosition().x), (float)(playerBody->GetPosition().y), 0.5f);
+#if 0
+    QVector3D playerPos((float)(playerBody->GetPosition().x), (float)(playerBody->GetPosition().y), 1.0f);
+    QVector3D lookDir3D = QVector3D((float)(lookDir.x), (float)(lookDir.y), tan(upDownAngle));
+
     camera.lookAt(playerPos,
-                  playerPos + QVector3D((float)(lookDir.x), (float)(lookDir.y), 0.0f),
+                  playerPos + lookDir3D,
                   QVector3D(0, 0, 1));
 #else
-    camera.lookAt(QVector3D(maze->width() / 2, maze->height() / 2, 30),
-                  QVector3D(maze->width() / 2, maze->height() / 2, 0),
+    camera.lookAt(QVector3D(CELL_WIDTH * maze->width() / 2, CELL_WIDTH * maze->height() / 2, 30),
+                  QVector3D(CELL_WIDTH * maze->width() / 2, CELL_WIDTH * maze->height() / 2, 0),
                   QVector3D(0,1,0));
 #endif
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glLoadMatrixf(camera.data());
+
+    wallShader->bind();
+
 
     glBegin(GL_QUADS);
     {
@@ -326,21 +342,21 @@ void MazeView::paintGL()
 
                 glColor3f(1,0,0); //red
                 if (cell.up)
-                    drawWall(QPoint(x, y+1), QVector2D(1,0), c1.right, c1.down, c4.right, c5.right, c6.up, c3.left);
+                    drawWall(QPoint(CELL_WIDTH*x, CELL_WIDTH*(y+1)), QVector2D(1,0), c1.right, c1.down, c4.right, c5.right, c6.up, c3.left);
 
                 glColor3f(1,1,0); // yellow
                 if (cell.down) {
-                    drawWall(QPoint(x+1, y), QVector2D(-1,0), c8.right, c6.down, c5.right, c4.right, c4.down, c7.right);
+                    drawWall(QPoint(CELL_WIDTH*(x+1), CELL_WIDTH*y), QVector2D(-1,0), c8.right, c6.down, c5.right, c4.right, c4.down, c7.right);
                 }
 
                 glColor3f(1,0,1); // purple
                 if (cell.left) {
-                    drawWall(QPoint(x,y), QVector2D(0,1), c7.up, c7.right, c5.down, c5.up, c2.left, c1.down);
+                    drawWall(QPoint(CELL_WIDTH*x,CELL_WIDTH*y), QVector2D(0,1), c7.up, c7.right, c5.down, c5.up, c2.left, c1.down);
                 }
 
                 glColor3f(0,1,1); // cyan
                 if (cell.right) {
-                    drawWall(QPoint(x+1,y+1), QVector2D(0,-1), c3.down, c3.left, c5.up, c5.down, c8.right, c9.up);
+                    drawWall(QPoint(CELL_WIDTH*(x+1),CELL_WIDTH*(y+1)), QVector2D(0,-1), c3.down, c3.left, c5.up, c5.down, c8.right, c9.up);
                 }
             }
         }
@@ -354,6 +370,8 @@ void MazeView::paintGL()
         glVertex2f(x-1, y+1);
     }
     glEnd();
+
+    wallShader->release();
 
     // draw ground grid
     glBegin(GL_LINES);
@@ -484,8 +502,9 @@ void MazeView::drawWall(QPoint pXY, QVector2D basisBottom, bool w1, bool w2, boo
     QVector3D start(pXY);
     QVector3D basisTop(0, 0, 1);
     QVector3D basisOut = QVector3D::crossProduct(basisBottom, basisTop);
+    QVector3D basisIn = -1 * basisOut;
 
-    float wallLength = 1.0f;
+    float wallLength = CELL_WIDTH; //1.0f;
     QVector3D cornerA;
     if (w3) {
         cornerA = start + (basisBottom * OFFSET) + (basisOut * OFFSET);
@@ -506,13 +525,36 @@ void MazeView::drawWall(QPoint pXY, QVector2D basisBottom, bool w1, bool w2, boo
     }
 
     QVector3D cornerB = cornerA + basisBottom * wallLength;
-    QVector3D cornerC = cornerB + basisTop;
-    QVector3D cornerD = cornerA + basisTop;
+    QVector3D cornerC = cornerB + basisTop*WALL_HEIGHT;
+    QVector3D cornerD = cornerA + basisTop*WALL_HEIGHT;
 
+    // draw wall
     glVertex3f(cornerA.x(), cornerA.y(), cornerA.z());
     glVertex3f(cornerB.x(), cornerB.y(), cornerB.z());
     glVertex3f(cornerC.x(), cornerC.y(), cornerC.z());
     glVertex3f(cornerD.x(), cornerD.y(), cornerD.z());
+
+    // draw caps
+    if (!w1 && !w2) {
+        QVector3D in = basisIn * OFFSET;
+        QVector3D top = cornerD + in;
+        QVector3D bottom = cornerA + in;
+
+        glVertex3f(cornerA.x(), cornerA.y(), cornerA.z());
+        glVertex3f(cornerD.x(), cornerD.y(), cornerD.z());
+        glVertex3f(top.x(), top.y(), top.z());
+        glVertex3f(bottom.x(), bottom.y(), bottom.z());
+    }
+    if (!w5 && !w6) {
+        QVector3D in = basisIn * OFFSET;
+        QVector3D top = cornerC + in;
+        QVector3D bottom = cornerB + in;
+
+        glVertex3f(cornerB.x(), cornerB.y(), cornerB.z());
+        glVertex3f(bottom.x(), bottom.y(), bottom.z());
+        glVertex3f(top.x(), top.y(), top.z());
+        glVertex3f(cornerC.x(), cornerC.y(), cornerC.z());
+    }
 }
 
 void MazeView::drawMazeOverlay(QPainter &painter)
@@ -550,7 +592,7 @@ void MazeView::drawMazeOverlay(QPainter &painter)
 
     // draw the player
     b2Vec2 p = playerBody->GetPosition();
-    QVector3D playerPos(p.x, p.y, 0);
+    QVector3D playerPos(p.x / CELL_WIDTH, p.y / CELL_WIDTH, 0);
     painter.drawRect(20*playerPos.x() - 1 + 20, 20*playerPos.y() - 1 + 20, 2, 2);
 
     painter.setMatrix(prevMatrix);

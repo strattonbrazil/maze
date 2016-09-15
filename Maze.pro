@@ -17,11 +17,13 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     mazeview.cpp \
     maze.cpp \
-    player.cpp
+    player.cpp \
+    shader.cpp
 
 HEADERS  += mainwindow.h \
     mazeview.h \
     maze.h \
-    player.h
+    player.h \
+    shader.h
 
 FORMS    += mainwindow.ui

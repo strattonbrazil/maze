@@ -8,11 +8,12 @@
 #include <QGLWidget>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QGLShaderProgram>
 
 #include <btBulletDynamicsCommon.h>
 #include <Box2D/Box2D.h>
 
-const float PLAYER_RADIUS = 0.3f;
+const float PLAYER_RADIUS = 0.5f;
 
 class MazeView : public QGLWidget
 {
@@ -43,6 +44,7 @@ private:
 
     QPoint lastMouseP;
     QPoint lastMouseDiff;
+    float upDownAngle;
 
     bool playerForward;
     bool playerBack;
@@ -69,6 +71,8 @@ private:
     b2Body* groundBody;
     b2Body* body;
     b2Body* playerBody;
+
+    QGLShaderProgram* wallShader;
 };
 
 #endif // MAZEVIEW_H

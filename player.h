@@ -5,8 +5,8 @@
 
 enum { STRAFE_LEFT, STRAFE_RIGHT };
 
-const float MAX_FORWARD_VELOCITY = 5.0f;
-const float MAX_BACKWARD_VELOCITY = 2.0f;
+const float MAX_FORWARD_VELOCITY = 2.0f;
+const float MAX_BACKWARD_VELOCITY = 1.0f;
 const float MAX_STRAFE_VELOCITY = 2.0f;
 const float ACCELERATION = 10.2f; // m/s^2
 const float TURN_ACCELERATION = 20.8f; // radians/s^2
