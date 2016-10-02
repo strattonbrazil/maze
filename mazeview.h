@@ -72,6 +72,8 @@ private:
     b2Body* body;
     b2Body* playerBody;
 
+    QPoint goal;
+
     QGLShaderProgram* wallShader;
 };
 

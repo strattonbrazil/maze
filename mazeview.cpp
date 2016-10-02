@@ -10,7 +10,11 @@
 
 #include <iostream>
 
-const float WALL_HEIGHT = 2.0f;
+inline float randomFloat() {
+    return ((float) rand()) / (float) RAND_MAX;
+}
+
+const float WALL_HEIGHT = 2.0f * 1.61;
 const float CELL_WIDTH = 2.0f;
 
 b2Vec2 dir(float angle)
@@ -137,6 +141,10 @@ MazeView::MazeView(QWidget *parent) : QGLWidget(parent), lastTime(0)
     playerStrafeLeft = false;
     playerStrafeRight = false;
     upDownAngle = 0.0f;
+
+    goal = QPoint(randomFloat() * maze->width(), randomFloat() * maze->height());
+
+    std::cout << "goal: " << goal.x() << "," << goal.y() << std::endl;
 }
 
 MazeView::~MazeView()
@@ -280,6 +288,13 @@ void MazeView::paintGL()
     }
     lastMouseDiff = QPoint(0,0);
 
+    // see if at end
+    QPoint currentCell(playerBody->GetPosition().x / CELL_WIDTH, playerBody->GetPosition().y / CELL_WIDTH);
+    if (currentCell == goal) {
+        std::cout << "arrived!" << std::endl;
+    }
+
+
     QPainter painter(this);
 
     painter.beginNativePainting();
@@ -299,7 +314,7 @@ void MazeView::paintGL()
 
     QMatrix4x4 camera;
 
-#if 0
+#if 1
     QVector3D playerPos((float)(playerBody->GetPosition().x), (float)(playerBody->GetPosition().y), 1.0f);
     QVector3D lookDir3D = QVector3D((float)(lookDir.x), (float)(lookDir.y), tan(upDownAngle));
 
@@ -417,6 +432,17 @@ void MazeView::paintGL()
     glEnd();
     glTranslatef(-x, -y, 0);
     glTranslatef(-playerP.x, -playerP.y, 0);
+
+    // draw goal
+    QVector2D center(CELL_WIDTH * goal.x() + 0.5f*CELL_WIDTH, CELL_WIDTH * goal.y() + 0.5f*CELL_WIDTH);
+    glBegin(GL_QUADS);
+    {
+        glVertex3f(center.x(), center.y(), 0);
+        glVertex3f(center.x(), center.y(), 100);
+        glVertex3f(center.x(), center.y() + 0.3f, 100);
+        glVertex3f(center.x(), center.y() + 0.3f, 0);
+    }
+    glEnd();
 
     glDisable(GL_DEPTH_TEST);
 
