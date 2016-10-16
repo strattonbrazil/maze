@@ -12,7 +12,7 @@ const char* wallFragShader = \
 "varying vec4 color;\n" \
 "void main(void)\n" \
 "{\n" \
-"  gl_FragColor = color;\n" \
+"  gl_FragColor = color * (1-gl_FragCoord.z);\n" \
 "}\n";
 
 QGLShaderProgram* ShaderFactory::wallShader(QGLContext * context)

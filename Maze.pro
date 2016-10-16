@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui opengl
+QT       += core gui opengl script
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -18,12 +18,19 @@ SOURCES += main.cpp\
     mazeview.cpp \
     maze.cpp \
     player.cpp \
-    shader.cpp
+    shader.cpp \
+    minigame.cpp \
+    console.cpp
 
 HEADERS  += mainwindow.h \
     mazeview.h \
     maze.h \
     player.h \
-    shader.h
+    shader.h \
+    minigame.h \
+    console.h
 
 FORMS    += mainwindow.ui
+
+RESOURCES += \
+    minigames.qrc

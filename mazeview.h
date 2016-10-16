@@ -9,11 +9,14 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QGLShaderProgram>
+#include <QScriptEngine>
 
 #include <btBulletDynamicsCommon.h>
 #include <Box2D/Box2D.h>
 
 const float PLAYER_RADIUS = 0.5f;
+
+enum { GAME_SEARCHING, GAME_MINIGAME, GAME_FLEEING };
 
 class MazeView : public QGLWidget
 {
@@ -33,8 +36,12 @@ signals:
 
 public slots:
 private:
+    void setupEngine();
+    void updateMiniGame();
+    void updateWorld();
     void drawWall(QPoint p, QVector2D basis, bool w1, bool w2, bool w3, bool w4, bool w5, bool w6);
     void drawMazeOverlay(QPainter &painter);
+    QScriptEngine* engine;
     Maze* maze;
     //Player player;
     QTimer* updateTimer;
@@ -73,6 +80,9 @@ private:
     b2Body* playerBody;
 
     QPoint goal;
+    QPoint start;
+
+    int gameMode;
 
     QGLShaderProgram* wallShader;
 };

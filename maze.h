@@ -2,6 +2,7 @@
 #define MAZE_H
 
 #include <QVector>
+#include <QPoint>
 
 struct Cell
 {
@@ -18,6 +19,8 @@ public:
 private:
     QVector<bool> _horizontals;
     QVector<bool> _verticals;
+
+    void removeWall(QPoint a, QPoint b);
 
     const int WIDTH;
     const int HEIGHT;

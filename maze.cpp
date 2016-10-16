@@ -1,6 +1,5 @@
 #include "maze.h"
 
-#include <QPoint>
 #include <QSet>
 #include <algorithm>
 
@@ -69,16 +68,35 @@ Maze::Maze(const int width, const int height) : WIDTH(width), HEIGHT(height)
             QPoint next = randomInSet(possibleNexts);
 
             // knock down walls between to points
-            if (randomVisited.x() - next.x() != 0) { // horizontal move
-                const int x = std::min(randomVisited.x(), next.x());
-                _verticals[randomVisited.y()*(width+1) + x+1] = false;
-            } else { // vertical move
-                const int y = std::min(randomVisited.y(), next.y());
-                _horizontals[y+1 + randomVisited.x()*(height+1)] = false;
-            }
-
+            removeWall(next, randomVisited);
             visited.insert(next);
+
+            // see if you can step in that direction again
+            QPoint prev = randomVisited;
+            QPoint step = next;
+            int x = next.x() - randomVisited.x();
+            int y = next.y() - randomVisited.y();
+            while (randomFloat() < 0.99f) {
+                QPoint tmpPrev = step;
+                step = QPoint(next.x() + x, next.y() + y);
+                if (!visited.contains(step) && step.x() >= 0 && step.x() < width && step.y() >= 0 && step.y() < height) {
+                    removeWall(step, tmpPrev);
+                    visited.insert(step);
+                }
+                prev = tmpPrev;
+            }
         }
+    }
+}
+
+void Maze::removeWall(QPoint a, QPoint b)
+{
+    if (a.x() - b.x() != 0) { // horizontally adjacent
+        const int x = std::min(a.x(), b.x());
+        _verticals[a.y()*(WIDTH+1) + x+1] = false;
+    } else { // vertically adjacent
+        const int y = std::min(a.y(), b.y());
+        _horizontals[y+1 + a.x()*(HEIGHT+1)] = false;
     }
 }
 
